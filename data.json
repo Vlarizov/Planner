@@ -1,5 +1,5 @@
 {
-  "updatedAt": 1792319464514,
+  "updatedAt": 1792319472826,
   "days": {
     "2026-10-19": {
       "passed": false,
@@ -14,7 +14,7 @@
           "time": "12:00-13:00",
           "title": "спать",
           "context": "здарова!",
-          "done": true
+          "done": false
         }
       ]
     },
