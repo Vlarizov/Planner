@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ежедневник и Планировщик (2026–2027)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    body { font-family: 'Inter', sans-serif; background-color: #0b1120; color: #f8fafc; }
+    .custom-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+    .custom-scroll::-webkit-scrollbar-track { background: #0f172a; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    .custom-scroll::-webkit-scrollbar-thumb:hover { background: #475569; }
+    .goal-done { text-decoration: line-through; color: #64748b; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- Шапка приложения -->
+  <header class="sticky top-0 z-30 bg-slate-900/95 backdrop-blur border-b border-slate-800 px-4 py-3 shadow-lg">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center font-bold text-lg shadow-inner">
+          📅
+        </div>
+        <div>
+          <div class="flex flex-wrap items-center gap-2">
+            <h1 class="text-base sm:text-lg font-bold tracking-tight">Личный Ежедневник</h1>
+            <span id="syncStatusBadge" class="text-[11px] px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-medium">
+              ⚙️ Требуется привязка к GitHub
+            </span>
+          </div>
+          <p class="text-xs text-slate-400">19.10.2026 — 31.12.2027 • Автосинхронизация между всеми устройствами</p>
+        </div>
+      </div>
+
+      <!-- Кнопки синхронизации -->
+      <div class="flex flex-wrap items-center gap-2">
+        <button onclick="pullFromGitHub()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition" title="Принудительно обновить данные с сервера">
+          🔄 Обновить с сервера
+        </button>
+        <button onclick="openRepoModal()" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition shadow">
+          🔑 Настройки GitHub-сервера
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Модальное окно подключения к репозиторию GitHub -->
+  <div id="repoModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-5 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+        <h3 class="text-base font-bold text-white">🔑 Подключение базы данных GitHub</h3>
+        <button onclick="closeRepoModal()" class="text-slate-400 hover:text-white text-sm px-2">✕</button>
+      </div>
+      <div class="space-y-3 text-xs text-slate-300">
+        <p class="text-slate-400">Укажи данные своего репозитория один раз на новом устройстве/в браузере. Все цели будут автоматически сохраняться в файл <code>data.json</code> внутри твоего GitHub.</p>
+        <div>
+          <label class="block text-slate-400 mb-1">1. Твой логин на GitHub (Owner):</label>
+          <input type="text" id="ghOwnerInput" placeholder="например: ivanov" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500">
+        </div>
+        <div>
+          <label class="block text-slate-400 mb-1">2. Название репозитория (Repository):</label>
+          <input type="text" id="ghRepoInput" placeholder="например: planner" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500">
+        </div>
+        <div>
+          <label class="block text-slate-400 mb-1">3. Personal Access Token (с правом <code>repo</code>):</label>
+          <input type="password" id="ghTokenInput" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-indigo-300 font-mono focus:outline-none focus:border-indigo-500">
+        </div>
+      </div>
+      <div class="flex items-center justify-end gap-2 mt-5 pt-3 border-t border-slate-800">
+        <button onclick="closeRepoModal()" class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 text-xs">Отмена</button>
+        <button onclick="saveRepoConfig()" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold">
+          Подключить и синхронизировать
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Верхняя панель: Навигация по учебным неделям + График за неделю -->
+  <section class="max-w-7xl w-full mx-auto px-4 pt-4 grid grid-cols-1 lg:grid-cols-12 gap-4">
+    <div class="lg:col-span-7 bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between">
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+        <div>
+          <h2 class="text-sm font-bold text-slate-200 uppercase tracking-wider">Навигация по учебным неделям</h2>
+          <p class="text-xs text-slate-400">Кликни на неделю для быстрого перехода к нужным датам</p>
+        </div>
+        <div class="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
+          <button onclick="setSemesterNav('AUTUMN')" id="navBtnAutumn" class="px-2.5 py-1 rounded-lg text-xs font-semibold transition">
+            Осень 2026 (8–18 нед)
+          </button>
+          <button onclick="setSemesterNav('SPRING')" id="navBtnSpring" class="px-2.5 py-1 rounded-lg text-xs font-semibold transition">
+            Весна 2027 (1–18 нед)
+          </button>
+        </div>
+      </div>
+      <div id="studyWeeksBar" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-44 overflow-y-auto custom-scroll pr-1"></div>
+    </div>
+
+    <div class="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between">
+      <div class="flex items-center justify-between mb-2">
+        <div>
+          <h2 class="text-sm font-bold text-slate-200" id="chartWeekTitle">График недели</h2>
+          <p class="text-xs text-slate-400" id="chartWeekSubtitle">Статистика выполнения целей</p>
+        </div>
+        <div class="flex items-center gap-1">
+          <button onclick="changeChartWeek(-1)" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs border border-slate-700">◀</button>
+          <button onclick="changeChartWeek(1)" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs border border-slate-700">▶</button>
+        </div>
+      </div>
+      <div id="weeklyChart" class="grid grid-cols-7 gap-2 items-end h-28 pt-4 px-1 border-b border-slate-800 pb-2"></div>
+      <div class="flex items-center justify-between text-xs text-slate-400 pt-2">
+        <span id="streakCounter" class="font-semibold text-emerald-400">🔥 Лучшая серия: 0 дн.</span>
+        <span id="weekStatsText">Выполнено за неделю: 0 / 0</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Панель фильтров -->
+  <section class="max-w-7xl w-full mx-auto px-4 py-3">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-3">
+      <div id="monthTabs" class="flex flex-wrap items-center gap-1.5"></div>
+      <div class="flex items-center gap-3">
+        <label class="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 hover:border-slate-600 transition">
+          <input type="checkbox" id="showPassedToggle" onchange="toggleShowPassed()" class="rounded bg-slate-900 border-slate-600 text-indigo-500">
+          <span>Показывать скрытые (пройденные) дни (<span id="passedCountBadge">0</span>)</span>
+        </label>
+      </div>
+    </div>
+  </section>
+
+  <!-- Основная таблица -->
+  <main class="max-w-7xl w-full mx-auto px-4 pb-12 flex-1">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+      <div class="hidden md:grid grid-cols-12 bg-slate-800/90 border-b border-slate-700 px-4 py-2.5 text-xs font-semibold text-slate-300 uppercase tracking-wider">
+        <div class="col-span-3">Дата и день недели</div>
+        <div class="col-span-9">Список целей на день (Время • Цель • Контекст / Детали)</div>
+      </div>
+      <div id="daysContainer" class="divide-y divide-slate-800"></div>
+    </div>
+  </main>
+
+  <script>
+    const STORAGE_KEY = 'personal_goals_planner_data_v5';
+    const GH_CONFIG_KEY = 'personal_goals_gh_config_v5';
+
+    const START_DATE   = new Date(2026, 9, 19);  // 19.10.2026
+    const END_DATE     = new Date(2027, 11, 31); // 31.12.2027
+    const AUTUMN_START = new Date(2026, 9, 19);
+    const AUTUMN_END   = new Date(2027, 0, 3);
+    const SPRING_START = new Date(2027, 1, 8);
+    const SPRING_END   = new Date(2027, 5, 13);
+
+    let state = {
+      updatedAt: 0,
+      days: {},
+      showPassed: false,
+      selectedFilter: 'SEM_AUTUMN',
+      semesterNav: 'AUTUMN',
+      chartWeekIndex: 0
+    };
+
+    let ghConfig = { owner: '', repo: '', token: '' };
+    let currentFileSha = null;
+    let saveTimer = null;
+    let isSaving = false;
+
+    function setBadge(text, type = 'emerald') {
+      const el = document.getElementById('syncStatusBadge');
+      const styles = {
+        emerald: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
+        indigo:  'bg-indigo-500/20 text-indigo-300 border-indigo-500/40',
+        amber:   'bg-amber-500/20 text-amber-300 border-amber-500/40',
+        rose:    'bg-rose-500/20 text-rose-300 border-rose-500/40'
+      };
+      el.className = `text-[11px] px-2.5 py-0.5 rounded-full border font-medium ${styles[type] || styles.emerald}`;
+      el.textContent = text;
+    }
+
+    // Автоопределение owner и repo, если сайт открыт на github.io
+    function detectGitHubPagesUrl() {
+      const host = window.location.hostname;
+      const pathParts = window.location.pathname.split('/').filter(Boolean);
+      if (host.endsWith('.github.io')) {
+        const owner = host.replace('.github.io', '');
+        const repo = pathParts[0] || '';
+        return { owner, repo };
+      }
+      return { owner: '', repo: '' };
+    }
+
+    // Кодирование UTF-8 строк в Base64 для GitHub API
+    function utf8ToBase64(str) {
+      return btoa(unescape(encodeURIComponent(str)));
+    }
+    function base64ToUtf8(b64) {
+      return decodeURIComponent(escape(atob(b64.replace(/\s/g, ''))));
+    }
+
+    async function initApp() {
+      const savedLocal = localStorage.getItem(STORAGE_KEY);
+      if (savedLocal) {
+        try { state = Object.assign(state, JSON.parse(savedLocal)); } catch (e) {}
+      }
+
+      const savedCfg = localStorage.getItem(GH_CONFIG_KEY);
+      const detected = detectGitHubPagesUrl();
+      if (savedCfg) {
+        try { ghConfig = JSON.parse(savedCfg); } catch (e) {}
+      }
+      if (!ghConfig.owner && detected.owner) ghConfig.owner = detected.owner;
+      if (!ghConfig.repo && detected.repo) ghConfig.repo = detected.repo;
+
+      renderAll();
+
+      if (ghConfig.owner && ghConfig.repo && ghConfig.token) {
+        await pullFromGitHub();
+      } else {
+        setBadge('⚙️ Нажми «Настройки GitHub-сервера» для синхронизации', 'amber');
+      }
+
+      // Автоматическая подгрузка свежих данных при переключении вкладки/устройства
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && ghConfig.token && !isSaving) {
+          pullFromGitHub(true);
+        }
+      });
+    }
+
+    // Загрузка базы данных data.json с сервера GitHub
+    async function pullFromGitHub(silent = false) {
+      if (!ghConfig.owner || !ghConfig.repo || !ghConfig.token) {
+        if (!silent) openRepoModal();
+        return;
+      }
+      if (!silent) setBadge('🔄 Загрузка данных с сервера...', 'indigo');
+
+      try {
+        const url = `https://api.github.com/repos/${ghConfig.owner}/${ghConfig.repo}/contents/data.json`;
+        const res = await fetch(url, {
+          headers: {
+            'Authorization': `token ${ghConfig.token}`,
+            'Accept': 'application/vnd.github.v3+json'
+          },
+          cache: 'no-store'
+        });
+
+        if (res.status === 404) {
+          // Файла data.json еще нет в репозитории — создаем его впервые
+          await pushToGitHub();
+          return;
+        }
+
+        if (!res.ok) throw new Error('Ошибка доступа к репозиторию');
+
+        const fileData = await res.json();
+        currentFileSha = fileData.sha;
+        const remoteState = JSON.parse(base64ToUtf8(fileData.content));
+
+        if ((remoteState.updatedAt || 0) >= (state.updatedAt || 0)) {
+          const currentFilter = state.selectedFilter;
+          const currentNav = state.semesterNav;
+          const currentWeek = state.chartWeekIndex;
+          state = Object.assign(state, remoteState);
+          state.selectedFilter = currentFilter;
+          state.semesterNav = currentNav;
+          state.chartWeekIndex = currentWeek;
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+          renderAll();
+        }
+        setBadge('☁️ Синхронизировано с GitHub (' + new Date().toLocaleTimeString('ru-RU') + ')', 'emerald');
+      } catch (err) {
+        console.error(err);
+        setBadge('⚠️ Ошибка связи с GitHub (проверь токен)', 'rose');
+      }
+    }
+
+    // Автоматическая отправка изменений на сервер GitHub
+    async function pushToGitHub() {
+      if (!ghConfig.owner || !ghConfig.repo || !ghConfig.token) return;
+      isSaving = true;
+      setBadge('💾 Сохранение на сервер...', 'indigo');
+
+      try {
+        const url = `https://api.github.com/repos/${ghConfig.owner}/${ghConfig.repo}/contents/data.json`;
+
+        // Получаем актуальный SHA перед записью, чтобы не было конфликтов между устройствами
+        if (!currentFileSha) {
+          const checkRes = await fetch(url, {
+            headers: { 'Authorization': `token ${ghConfig.token}` },
+            cache: 'no-store'
+          });
+          if (checkRes.ok) {
+            const checkData = await checkRes.json();
+            currentFileSha = checkData.sha;
+          }
+        }
+
+        const bodyPayload = {
+          message: 'Автосохранение целей: ' + new Date().toLocaleString('ru-RU'),
+          content: utf8ToBase64(JSON.stringify(state, null, 2))
+        };
+        if (currentFileSha) bodyPayload.sha = currentFileSha;
+
+        const res = await fetch(url, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `token ${ghConfig.token}`,
+            'Accept': 'application/vnd.github.v3+json',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(bodyPayload)
+        });
+
+        if (res.status === 409) {
+          // Если изменили с другого устройства — обновляем SHA и повторяем
+          currentFileSha = null;
+          isSaving = false;
+          await pullFromGitHub(true);
+          return;
+        }
+
+        if (!res.ok) throw new Error('Ошибка записи');
+
+        const savedData = await res.json();
+        currentFileSha = savedData.content.sha;
+        setBadge('✅ Автосохранено в облаке (' + new Date().toLocaleTimeString('ru-RU') + ')', 'emerald');
+      } catch (err) {
+        console.error(err);
+        setBadge('⚠️ Ошибка сохранения на сервер', 'rose');
+      } finally {
+        isSaving = false;
+      }
+    }
+
+    function saveState() {
+      state.updatedAt = Date.now();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      updateStatsAndChart();
+
+      if (ghConfig.token) {
+        setBadge('⏳ Запись изменений...', 'indigo');
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(() => pushToGitHub(), 900);
+      }
+    }
+
+    function openRepoModal() {
+      document.getElementById('ghOwnerInput').value = ghConfig.owner || '';
+      document.getElementById('ghRepoInput').value = ghConfig.repo || '';
+      document.getElementById('ghTokenInput').value = ghConfig.token || '';
+      document.getElementById('repoModal').classList.remove('hidden');
+    }
+
+    function closeRepoModal() {
+      document.getElementById('repoModal').classList.add('hidden');
+    }
+
+    async function saveRepoConfig() {
+      ghConfig.owner = document.getElementById('ghOwnerInput').value.trim();
+      ghConfig.repo  = document.getElementById('ghRepoInput').value.trim();
+      ghConfig.token = document.getElementById('ghTokenInput').value.trim();
+      localStorage.setItem(GH_CONFIG_KEY, JSON.stringify(ghConfig));
+      closeRepoModal();
+      await pullFromGitHub();
+    }
+
+    function toISODate(d) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
+
+    const allDates = [];
+    {
+      let cur = new Date(START_DATE);
+      while (cur <= END_DATE) {
+        allDates.push(new Date(cur));
+        cur.setDate(cur.getDate() + 1);
+      }
+    }
+
+    function getStudyWeekInfo(dateObj) {
+      const t = dateObj.getTime();
+      if (t >= AUTUMN_START.getTime() && t <= AUTUMN_END.getTime()) {
+        const diffDays = Math.round((t - AUTUMN_START.getTime()) / (1000 * 60 * 60 * 24));
+        const weekNum = 8 + Math.floor(diffDays / 7);
+        if (weekNum >= 8 && weekNum <= 18) {
+          const type = (weekNum % 2 === 0) ? 'Знаменатель' : 'Числитель';
+          return { semester: 'AUTUMN', weekNum, type };
+        }
+      }
+      if (t >= SPRING_START.getTime() && t <= SPRING_END.getTime()) {
+        const diffDays = Math.round((t - SPRING_START.getTime()) / (1000 * 60 * 60 * 24));
+        const weekNum = 1 + Math.floor(diffDays / 7);
+        if (weekNum >= 1 && weekNum <= 18) {
+          const type = (weekNum % 2 !== 0) ? 'Числитель' : 'Знаменатель';
+          return { semester: 'SPRING', weekNum, type };
+        }
+      }
+      return { semester: null, weekNum: null, type: null };
+    }
+
+    const weeksList = [];
+    for (let i = 0; i < allDates.length; i += 7) {
+      const slice = allDates.slice(i, i + 7);
+      const info = getStudyWeekInfo(slice[0]);
+      weeksList.push({
+        index: weeksList.length,
+        dates: slice,
+        semester: info.semester,
+        weekNum: info.weekNum,
+        type: info.type
+      });
+    }
+
+    function ensureDayData(iso) {
+      if (!state.days[iso]) state.days[iso] = { passed: false, tasks: [] };
+      if (!Array.isArray(state.days[iso].tasks)) state.days[iso].tasks = [];
+      return state.days[iso];
+    }
+
+    function setSemesterNav(sem) {
+      state.semesterNav = sem;
+      renderStudyWeeksBar();
+    }
+
+    function renderStudyWeeksBar() {
+      const btnAutumn = document.getElementById('navBtnAutumn');
+      const btnSpring = document.getElementById('navBtnSpring');
+
+      btnAutumn.className = `px-2.5 py-1 rounded-lg text-xs font-semibold transition ${
+        state.semesterNav === 'AUTUMN' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
+      }`;
+      btnSpring.className = `px-2.5 py-1 rounded-lg text-xs font-semibold transition ${
+        state.semesterNav === 'SPRING' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
+      }`;
+
+      const bar = document.getElementById('studyWeeksBar');
+      const filteredWeeks = weeksList.filter(w => w.semester === state.semesterNav);
+
+      bar.innerHTML = filteredWeeks.map(w => {
+        const startStr = w.dates[0].toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+        const endStr = w.dates[w.dates.length - 1].toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+        const isNumer = w.type === 'Числитель';
+        const isSelected = state.chartWeekIndex === w.index;
+
+        return `
+          <div onclick="jumpToWeek(${w.index})" class="cursor-pointer p-2 rounded-xl border transition ${
+            isSelected
+              ? 'bg-indigo-950/90 border-indigo-500 shadow'
+              : 'bg-slate-800/60 border-slate-700/70 hover:border-slate-500'
+          }">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-xs font-bold text-white">${w.weekNum} неделя</span>
+              <span class="text-[10px] px-1.5 py-0.5 rounded font-semibold ${
+                isNumer
+                  ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
+                  : 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+              }">${isNumer ? 'ЧС' : 'ЗН'}</span>
+            </div>
+            <div class="text-[11px] text-slate-400">${startStr} – ${endStr}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function jumpToWeek(weekIdx) {
+      state.chartWeekIndex = weekIdx;
+      const targetWeek = weeksList[weekIdx];
+      const targetIso = toISODate(targetWeek.dates[0]);
+
+      const el = document.getElementById(`day-row-${targetIso}`);
+      if (!el) {
+        if (targetWeek.semester === 'AUTUMN') state.selectedFilter = 'SEM_AUTUMN';
+        else if (targetWeek.semester === 'SPRING') state.selectedFilter = 'SEM_SPRING';
+        else state.selectedFilter = 'ALL';
+        renderMonthTabs();
+        renderDaysTable();
+      }
+
+      updateStatsAndChart();
+      renderStudyWeeksBar();
+
+      setTimeout(() => {
+        const rowEl = document.getElementById(`day-row-${targetIso}`);
+        if (rowEl) {
+          rowEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          rowEl.classList.add('ring-2', 'ring-indigo-500');
+          setTimeout(() => rowEl.classList.remove('ring-2', 'ring-indigo-500'), 1800);
+        }
+      }, 60);
+    }
+
+    function selectFilterTab(filterKey) {
+      state.selectedFilter = filterKey;
+      renderMonthTabs();
+      renderDaysTable();
+    }
+
+    function renderMonthTabs() {
+      const container = document.getElementById('monthTabs');
+      const tabs = [
+        { key: 'SEM_AUTUMN', label: '🍂 8–18 нед (19 окт – 3 янв)' },
+        { key: 'JAN_BREAK',  label: '❄️ 4 янв – 7 фев (без недель)' },
+        { key: 'SEM_SPRING', label: '🌱 1–18 нед (8 фев – 13 июн)' },
+        { key: '2026-10', label: 'Окт 26' },
+        { key: '2026-11', label: 'Ноя 26' },
+        { key: '2026-12', label: 'Дек 26' },
+        { key: '2027-01', label: 'Янв 27' },
+        { key: '2027-02', label: 'Фев 27' },
+        { key: '2027-03', label: 'Мар 27' },
+        { key: '2027-04', label: 'Апр 27' },
+        { key: '2027-05', label: 'Май 27' },
+        { key: '2027-06', label: 'Июн 27' },
+        { key: '2027-07', label: 'Июл 27' },
+        { key: '2027-08', label: 'Авг 27' },
+        { key: '2027-09', label: 'Сен 27' },
+        { key: '2027-10', label: 'Окт 27' },
+        { key: '2027-11', label: 'Ноя 27' },
+        { key: '2027-12', label: 'Дек 27' },
+        { key: 'ALL', label: 'Все дни до конца 2027 (439)' }
+      ];
+
+      container.innerHTML = tabs.map(t => {
+        const active = state.selectedFilter === t.key;
+        return `<button onclick="selectFilterTab('${t.key}')" class="px-2.5 py-1 rounded-lg text-xs font-medium transition ${
+          active
+            ? 'bg-indigo-600 text-white shadow'
+            : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200'
+        }">${t.label}</button>`;
+      }).join('');
+    }
+
+    function renderDaysTable() {
+      const container = document.getElementById('daysContainer');
+      document.getElementById('showPassedToggle').checked = state.showPassed;
+
+      let passedCount = 0;
+      Object.values(state.days).forEach(d => { if (d && d.passed) passedCount++; });
+      document.getElementById('passedCountBadge').textContent = passedCount;
+
+      const filteredDates = allDates.filter(d => {
+        const iso = toISODate(d);
+        const dayData = state.days[iso];
+        if (!state.showPassed && dayData && dayData.passed) return false;
+
+        if (state.selectedFilter === 'ALL') return true;
+        if (state.selectedFilter === 'SEM_AUTUMN') return d >= AUTUMN_START && d <= AUTUMN_END;
+        if (state.selectedFilter === 'JAN_BREAK')  return d > AUTUMN_END && d < SPRING_START;
+        if (state.selectedFilter === 'SEM_SPRING') return d >= SPRING_START && d <= SPRING_END;
+        return iso.startsWith(state.selectedFilter);
+      });
+
+      if (filteredDates.length === 0) {
+        container.innerHTML = `<div class="p-8 text-center text-slate-400 text-sm">Все дни в этом периоде скрыты как пройденные. Включи галочку «Показывать скрытые дни», чтобы увидеть их снова.</div>`;
+        return;
+      }
+
+      const dayNamesFull = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
+      let html = '';
+
+      filteredDates.forEach(d => {
+        const iso = toISODate(d);
+        const dayData = ensureDayData(iso);
+        const dow = d.getDay();
+        const isSunday = (dow === 0);
+        const studyInfo = getStudyWeekInfo(d);
+
+        if (dow === 1) {
+          const endOfWeek = new Date(d);
+          endOfWeek.setDate(endOfWeek.getDate() + 6);
+          const rangeText = `${d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })} — ${endOfWeek.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}`;
+
+          if (studyInfo.weekNum !== null) {
+            const isNumer = studyInfo.type === 'Числитель';
+            html += `
+              <div class="bg-indigo-950/70 border-y border-indigo-500/30 px-4 py-2.5 flex flex-wrap items-center justify-between gap-2">
+                <div class="flex flex-wrap items-center gap-2.5">
+                  <span class="px-2.5 py-0.5 rounded-md text-xs font-bold bg-indigo-600 text-white shadow">
+                    ${studyInfo.weekNum} УЧЕБНАЯ НЕДЕЛЯ
+                  </span>
+                  <span class="px-2.5 py-0.5 rounded-md text-xs font-bold ${
+                    isNumer
+                      ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40'
+                      : 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
+                  }">
+                    ${studyInfo.type.toUpperCase()}
+                  </span>
+                  <span class="text-xs text-slate-300 font-medium">${rangeText}</span>
+                </div>
+              </div>
+            `;
+          } else {
+            html += `
+              <div class="bg-slate-800/60 border-y border-slate-700/60 px-4 py-2 text-xs font-semibold text-slate-400">
+                Календарная неделя: ${rangeText}
+              </div>
+            `;
+          }
+        }
+
+        const dateFormatted = d.toLocaleDateString('ru-RU', { day: '2-digit', month: 'long', year: 'numeric' });
+
+        const tasksHtml = (dayData.tasks || []).map((t, idx) => `
+          <div class="flex flex-col sm:flex-row sm:items-center gap-2 bg-slate-800/75 border border-slate-700/80 rounded-xl px-3 py-2 group transition hover:border-slate-600">
+            <div class="flex items-center gap-2">
+              <input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggleGoalDone('${iso}', ${idx})"
+                class="w-4 h-4 rounded bg-slate-900 border-slate-600 text-emerald-500 cursor-pointer shrink-0">
+              <input type="text" value="${escapeHtml(t.time || '')}" placeholder="Время"
+                onchange="updateGoalField('${iso}', ${idx}, 'time', this.value)"
+                class="w-28 bg-slate-900/90 border border-slate-700 rounded-lg px-2 py-1 text-xs font-mono text-indigo-300 focus:outline-none focus:border-indigo-500">
+            </div>
+
+            <input type="text" value="${escapeHtml(t.title !== undefined ? t.title : (t.text || ''))}" placeholder="Название цели / дела"
+              onchange="updateGoalField('${iso}', ${idx}, 'title', this.value)"
+              class="flex-1 bg-slate-900/50 border border-transparent focus:border-slate-700 rounded-lg px-2.5 py-1 text-sm font-medium focus:outline-none ${t.done ? 'goal-done' : 'text-slate-100'}">
+
+            <input type="text" value="${escapeHtml(t.context || '')}" placeholder="Контекст / детали / заметка..."
+              onchange="updateGoalField('${iso}', ${idx}, 'context', this.value)"
+              class="sm:w-64 md:w-72 bg-slate-900/60 border border-slate-700/60 focus:border-indigo-500 rounded-lg px-2.5 py-1 text-xs focus:outline-none ${t.done ? 'goal-done' : 'text-slate-300'} placeholder-slate-500">
+
+            <button onclick="deleteGoal('${iso}', ${idx})" class="self-end sm:self-center text-slate-500 hover:text-rose-400 text-xs px-2 py-1 rounded hover:bg-slate-900 transition" title="Удалить цель">
+              ✕
+            </button>
+          </div>
+        `).join('');
+
+        const doneCount = (dayData.tasks || []).filter(t => t.done).length;
+        const totalCount = (dayData.tasks || []).length;
+
+        html += `
+          <div id="day-row-${iso}" class="grid grid-cols-12 gap-4 px-4 py-3.5 items-start transition ${
+            dayData.passed ? 'opacity-45 bg-slate-950/70' : 'hover:bg-slate-800/20'
+          }">
+            <div class="col-span-12 md:col-span-3 flex flex-col justify-between gap-2.5 border-b md:border-b-0 md:border-r border-slate-800 pb-3 md:pb-0 md:pr-3">
+              <div>
+                <div class="flex items-center justify-between md:justify-start gap-2">
+                  <span class="text-sm font-bold ${isSunday ? 'text-rose-400' : 'text-slate-100'}">${dateFormatted}</span>
+                </div>
+                <div class="flex flex-wrap items-center gap-2 mt-1">
+                  <span class="text-xs font-medium ${isSunday ? 'text-rose-400' : 'text-slate-400'}">
+                    ${dayNamesFull[dow]}${isSunday ? ' (Выходной)' : ''}
+                  </span>
+                  ${studyInfo.weekNum !== null ? `
+                    <span class="text-[10px] px-1.5 py-0.5 rounded font-semibold ${
+                      studyInfo.type === 'Числитель'
+                        ? 'bg-sky-500/15 text-sky-300 border border-sky-500/30'
+                        : 'bg-purple-500/15 text-purple-300 border border-purple-500/30'
+                    }">
+                      ${studyInfo.weekNum} нед • ${studyInfo.type === 'Числитель' ? 'ЧС' : 'ЗН'}
+                    </span>
+                  ` : ''}
+                </div>
+              </div>
+
+              <div class="flex flex-wrap items-center gap-2 pt-1">
+                <button onclick="toggleDayPassed('${iso}')" class="px-2.5 py-1 rounded-lg text-xs font-medium border transition ${
+                  dayData.passed
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+                }">
+                  ${dayData.passed ? '↩ Вернуть день' : '✓ День пройден (Убрать)'}
+                </button>
+                ${totalCount > 0 ? `
+                  <span class="text-[11px] px-2 py-0.5 rounded-md ${
+                    doneCount === totalCount ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-slate-400'
+                  }">
+                    Целей: ${doneCount}/${totalCount}
+                  </span>
+                ` : ''}
+              </div>
+            </div>
+
+            <div class="col-span-12 md:col-span-9 flex flex-col gap-2.5">
+              <div class="flex flex-col gap-2">
+                ${tasksHtml}
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-12 gap-2 bg-slate-950/70 p-2 rounded-xl border border-slate-800/90">
+                <input type="text" id="time-input-${iso}" placeholder="Время (10:00-11:30)"
+                  onkeydown="if(event.key==='Enter') addGoal('${iso}')"
+                  class="sm:col-span-3 bg-slate-900 border border-slate-700/80 rounded-lg px-2.5 py-1.5 text-xs font-mono text-indigo-300 placeholder-slate-500 focus:outline-none focus:border-indigo-500">
+                <input type="text" id="title-input-${iso}" placeholder="Название цели / задачи..."
+                  onkeydown="if(event.key==='Enter') addGoal('${iso}')"
+                  class="sm:col-span-4 bg-slate-900 border border-slate-700/80 rounded-lg px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500">
+                <input type="text" id="context-input-${iso}" placeholder="Контекст (детали, ауд., заметки)..."
+                  onkeydown="if(event.key==='Enter') addGoal('${iso}')"
+                  class="sm:col-span-3 bg-slate-900 border border-slate-700/80 rounded-lg px-3 py-1.5 text-xs text-slate-300 placeholder-slate-500 focus:outline-none focus:border-indigo-500">
+                <button onclick="addGoal('${iso}')" class="sm:col-span-2 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition">
+                  + Добавить
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    }
+
+    function addGoal(iso) {
+      const timeEl = document.getElementById(`time-input-${iso}`);
+      const titleEl = document.getElementById(`title-input-${iso}`);
+      const contextEl = document.getElementById(`context-input-${iso}`);
+
+      const timeVal = timeEl.value.trim();
+      const titleVal = titleEl.value.trim();
+      const contextVal = contextEl.value.trim();
+
+      if (!titleVal && !timeVal && !contextVal) return;
+
+      const dayData = ensureDayData(iso);
+      dayData.tasks.push({
+        time: timeVal || 'Весь день',
+        title: titleVal || 'Цель без названия',
+        context: contextVal || '',
+        done: false
+      });
+
+      timeEl.value = '';
+      titleEl.value = '';
+      contextEl.value = '';
+
+      saveState();
+      renderDaysTable();
+    }
+
+    function toggleGoalDone(iso, idx) {
+      const dayData = ensureDayData(iso);
+      if (dayData.tasks[idx]) {
+        dayData.tasks[idx].done = !dayData.tasks[idx].done;
+        saveState();
+        renderDaysTable();
+      }
+    }
+
+    function updateGoalField(iso, idx, field, value) {
+      const dayData = ensureDayData(iso);
+      if (dayData.tasks[idx]) {
+        dayData.tasks[idx][field] = value;
+        saveState();
+      }
+    }
+
+    function deleteGoal(iso, idx) {
+      const dayData = ensureDayData(iso);
+      dayData.tasks.splice(idx, 1);
+      saveState();
+      renderDaysTable();
+    }
+
+    function toggleDayPassed(iso) {
+      const dayData = ensureDayData(iso);
+      dayData.passed = !dayData.passed;
+      saveState();
+      renderDaysTable();
+    }
+
+    function toggleShowPassed() {
+      state.showPassed = document.getElementById('showPassedToggle').checked;
+      saveState();
+      renderDaysTable();
+    }
+
+    function changeChartWeek(delta) {
+      const next = state.chartWeekIndex + delta;
+      if (next >= 0 && next < weeksList.length) {
+        state.chartWeekIndex = next;
+        updateStatsAndChart();
+        renderStudyWeeksBar();
+      }
+    }
+
+    function updateStatsAndChart() {
+      const currentWeek = weeksList[state.chartWeekIndex] || weeksList[0];
+      const firstDate = currentWeek.dates[0];
+      const lastDate = currentWeek.dates[currentWeek.dates.length - 1];
+
+      document.getElementById('chartWeekTitle').textContent =
+        `Неделя: ${firstDate.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })} – ${lastDate.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+      document.getElementById('chartWeekSubtitle').textContent = currentWeek.weekNum !== null
+        ? `${currentWeek.weekNum} учебная неделя • ${currentWeek.type}`
+        : `Вне учебных недель (календарная неделя)`;
+
+      const chartContainer = document.getElementById('weeklyChart');
+      const shortNames = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+
+      let weekDone = 0;
+      let weekTotal = 0;
+
+      chartContainer.innerHTML = currentWeek.dates.map((d, idx) => {
+        const iso = toISODate(d);
+        const dayData = state.days[iso] || { tasks: [] };
+        const tasks = dayData.tasks || [];
+        const doneTasks = tasks.filter(t => t.done).length;
+
+        weekDone += doneTasks;
+        weekTotal += tasks.length;
+
+        const pct = tasks.length > 0 ? Math.round((doneTasks / tasks.length) * 100) : 0;
+        const barHeight = tasks.length > 0 ? Math.max(pct, 10) : 6;
+        const isSunday = (d.getDay() === 0);
+
+        return `
+          <div onclick="jumpToDay('${iso}')" class="flex flex-col items-center justify-end h-full cursor-pointer group">
+            <span class="text-[10px] text-slate-400 mb-1">${doneTasks}/${tasks.length}</span>
+            <div class="w-full bg-slate-800 rounded-t-lg overflow-hidden flex items-end h-16 p-0.5">
+              <div style="height: ${barHeight}%" class="w-full rounded-t transition-all ${
+                tasks.length === 0
+                  ? 'bg-slate-700'
+                  : pct === 100
+                    ? 'bg-emerald-500'
+                    : pct >= 40
+                      ? 'bg-indigo-500'
+                      : 'bg-amber-500'
+              }"></div>
+            </div>
+            <span class="text-[11px] font-medium mt-1 group-hover:text-indigo-400 ${isSunday ? 'text-rose-400' : 'text-slate-300'}">${shortNames[idx]}</span>
+            <span class="text-[10px] text-slate-500">${d.getDate()}</span>
+          </div>
+        `;
+      }).join('');
+
+      let currentStreak = 0;
+      let bestStreak = 0;
+      allDates.forEach(d => {
+        const iso = toISODate(d);
+        const data = state.days[iso];
+        if (data && Array.isArray(data.tasks) && data.tasks.some(t => t.done)) {
+          currentStreak++;
+          if (currentStreak > bestStreak) bestStreak = currentStreak;
+        } else {
+          currentStreak = 0;
+        }
+      });
+
+      document.getElementById('streakCounter').textContent = `🔥 Лучшая серия: ${bestStreak} дн.`;
+      document.getElementById('weekStatsText').textContent = `Выполнено за неделю: ${weekDone} из ${weekTotal}`;
+    }
+
+    function jumpToDay(iso) {
+      const el = document.getElementById(`day-row-${iso}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('ring-2', 'ring-emerald-500');
+        setTimeout(() => el.classList.remove('ring-2', 'ring-emerald-500'), 1500);
+      }
+    }
+
+    function renderAll() {
+      renderStudyWeeksBar();
+      renderMonthTabs();
+      renderDaysTable();
+      updateStatsAndChart();
+    }
+
+    initApp();
+  </script>
+</body>
+</html>
