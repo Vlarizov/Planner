@@ -1,9 +1,16 @@
 {
-  "updatedAt": 0,
+  "updatedAt": 1792319045842,
   "days": {
     "2026-10-19": {
       "passed": false,
-      "tasks": []
+      "tasks": [
+        {
+          "time": "10:00 - 11:30",
+          "title": "Есть",
+          "context": "Завтра",
+          "done": false
+        }
+      ]
     },
     "2026-10-20": {
       "passed": false,
